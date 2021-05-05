@@ -43,6 +43,7 @@ import org.apache.pulsar.client.api.ClientBuilder;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.PulsarClientException.UnsupportedAuthenticationException;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.WatermarkId;
 import org.apache.pulsar.client.api.schema.GenericRecord;
 import org.apache.pulsar.client.api.schema.GenericSchema;
 import org.apache.pulsar.client.api.schema.RecordSchemaBuilder;
@@ -75,6 +76,14 @@ public class DefaultImplementation {
             "org.apache.pulsar.client.impl.MessageIdImpl",
             "fromByteArrayWithTopic", byte[].class, String.class);
 
+    private static final Constructor<WatermarkId> WATERMARK_ID_IMPL_MessageArray = getConstructor(
+            "org.apache.pulsar.client.impl.WatermarkIdImpl",
+            MessageId[].class);
+
+    private static final Method WATERMARK_ID_IMPL_fromByteArray = getStaticMethod(
+            "org.apache.pulsar.client.impl.WatermarkIdImpl", "fromByteArray",
+            byte[].class);
+
     private static final Constructor<Authentication> AUTHENTICATION_TOKEN_String = getConstructor(
             "org.apache.pulsar.client.impl.auth.AuthenticationToken", String.class);
 
@@ -105,6 +114,14 @@ public class DefaultImplementation {
 
     public static MessageId newMessageIdFromByteArrayWithTopic(byte[] data, String topicName) {
         return catchExceptions(() -> (MessageId) MESSAGE_ID_IMPL_fromByteArrayWithTopic.invoke(null, data, topicName));
+    }
+
+    public static WatermarkId newWatermarkId(MessageId[] messages) {
+        return catchExceptions(() -> WATERMARK_ID_IMPL_MessageArray.newInstance(messages));
+    }
+
+    public static WatermarkId newWatermarkIdFromByteArray(byte[] data) {
+        return catchExceptions(() -> (WatermarkId) WATERMARK_ID_IMPL_fromByteArray.invoke(null, data));
     }
 
     public static Authentication newAuthenticationToken(String token) {

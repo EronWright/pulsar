@@ -65,6 +65,7 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.PulsarClientException.CryptoException;
 import org.apache.pulsar.client.api.PulsarClientException.TimeoutException;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.WatermarkId;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.conf.ProducerConfigurationData;
 import org.apache.pulsar.client.impl.crypto.MessageCryptoBc;
@@ -351,9 +352,19 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         if (txn == null) {
             return internalSendAsync(message);
         } else {
-            return ((TransactionImpl) txn).registerProducedTopic(topic)
+            TransactionImpl txnImpl = (TransactionImpl) txn;
+            CompletableFuture<MessageId> sendFuture = txnImpl.registerProducedTopic(topic)
                         .thenCompose(ignored -> internalSendAsync(message));
+            txnImpl.registerSendOp(sendFuture);
+            return sendFuture;
         }
+    }
+
+    @Override
+    CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(WatermarkImpl watermark, Transaction txn) {
+        MessageImpl<?> message = watermark.createMessage(this);
+        CompletableFuture<MessageId> msgId = internalSendWithTxnAsync(message, txn);
+        return msgId.thenApply(messageId -> new WatermarkIdImpl(new MessageId[]{messageId}));
     }
 
     /**

@@ -100,7 +100,6 @@ public class TypedMessageBuilderImpl<T> implements TypedMessageBuilder<T> {
         CompletableFuture<MessageId> sendFuture;
         if (txn != null) {
             sendFuture = producer.internalSendWithTxnAsync(message, txn);
-            txn.registerSendOp(sendFuture);
         } else {
             sendFuture = producer.internalSendAsync(message);
         }

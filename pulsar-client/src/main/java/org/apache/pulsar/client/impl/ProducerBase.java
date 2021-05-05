@@ -29,6 +29,8 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SchemaSerializationException;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.apache.pulsar.client.api.WatermarkBuilder;
+import org.apache.pulsar.client.api.WatermarkId;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.conf.ProducerConfigurationData;
 import org.apache.pulsar.client.impl.transaction.TransactionImpl;
@@ -118,6 +120,26 @@ public abstract class ProducerBase<T> extends HandlerState implements Producer<T
             throw PulsarClientException.unwrap(e);
         }
     }
+
+    @Override
+    public WatermarkBuilder newWatermark() {
+        return new WatermarkBuilderImpl(this);
+    }
+
+    @Override
+    public WatermarkBuilder newWatermark(Transaction txn) {
+        checkArgument(txn instanceof TransactionImpl);
+
+        // check the producer has proper settings to send transactional messages
+        if (conf.getSendTimeoutMs() > 0) {
+            throw new IllegalArgumentException("Only producers disabled sendTimeout are allowed to"
+                    + " produce transactional watermarks");
+        }
+
+        return new WatermarkBuilderImpl(this, (TransactionImpl) txn);
+    }
+
+    abstract CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(WatermarkImpl watermark, Transaction txn);
 
     @Override
     public void flush() throws PulsarClientException {

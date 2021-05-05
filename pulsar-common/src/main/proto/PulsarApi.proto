@@ -63,6 +63,10 @@ message MessageIdData {
     optional int32 batch_size = 6;
 }
 
+message WatermarkIdData {
+    repeated MessageIdData message = 1;
+}
+
 message KeyValue {
     required string key = 1;
     required string value = 2;

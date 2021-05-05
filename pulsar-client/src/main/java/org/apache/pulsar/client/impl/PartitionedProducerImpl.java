@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +35,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.pulsar.client.api.Message;
@@ -46,6 +46,7 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.PulsarClientException.NotSupportedException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TopicMetadata;
+import org.apache.pulsar.client.api.WatermarkId;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.conf.ProducerConfigurationData;
 import org.apache.pulsar.common.naming.TopicName;
@@ -189,6 +190,21 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
         checkArgument(partition >= 0 && partition < topicMetadata.numPartitions(),
                 "Illegal partition index chosen by the message routing policy: " + partition);
         return producers.get(partition).internalSendWithTxnAsync(message, txn);
+    }
+
+    @Override
+    CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(final WatermarkImpl watermark, final Transaction txn) {
+        ArrayList<CompletableFuture<MessageId>> sendFutures = new ArrayList<>();
+        producers.forEach(producer -> {
+            MessageImpl<?> message = watermark.createMessage(this);
+            CompletableFuture<MessageId> sendFuture = producer.internalSendWithTxnAsync(message, txn);
+            sendFutures.add(sendFuture);
+        });
+
+        return CompletableFuture.allOf(sendFutures.toArray(new CompletableFuture[0])).thenApply(ignore -> {
+            MessageId[] messageIds = sendFutures.stream().map(CompletableFuture<MessageId>::join).toArray(MessageId[]::new);
+            return new WatermarkIdImpl(messageIds);
+        });
     }
 
     @Override
