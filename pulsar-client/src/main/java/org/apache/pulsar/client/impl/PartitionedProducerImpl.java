@@ -196,7 +196,7 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
     CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(final WatermarkImpl watermark, final Transaction txn) {
         ArrayList<CompletableFuture<MessageId>> sendFutures = new ArrayList<>();
         producers.forEach(producer -> {
-            MessageImpl<?> message = watermark.createMessage(this);
+            MessageImpl<?> message = watermark.createMessage(producer);
             CompletableFuture<MessageId> sendFuture = producer.internalSendWithTxnAsync(message, txn);
             sendFutures.add(sendFuture);
         });
@@ -333,6 +333,7 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
                                 new ProducerImpl<>(client,
                                     partitionName, conf, new CompletableFuture<>(),
                                     partitionIndex, schema, interceptors);
+                            // TODO lock the producers
                             producers.add(producer);
                             return producer.producerCreatedFuture();
                         }).collect(Collectors.toList());

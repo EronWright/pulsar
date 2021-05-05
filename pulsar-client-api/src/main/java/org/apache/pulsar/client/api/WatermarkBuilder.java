@@ -35,7 +35,7 @@ import java.util.concurrent.CompletableFuture;
  * </code></pre>
  */
 @InterfaceAudience.Public
-@InterfaceStability.Stable
+@InterfaceStability.Evolving
 public interface WatermarkBuilder extends Serializable {
 
     /**
