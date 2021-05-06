@@ -132,6 +132,32 @@ public interface Producer<T> extends Closeable {
      * @since 2.7.0
      */
     TypedMessageBuilder<T> newMessage(Transaction txn);
+
+
+    /**
+     * Create a new watermark builder.
+     *
+     * @return a watermark builder that can be used to construct the watermark to be sent through this producer.
+     * @see #newWatermark()
+     *
+     * @since 2.9.0
+     */
+    WatermarkBuilder newWatermark();
+
+    /**
+     * Create a new watermark builder with transaction.
+     *
+     * <p>After the transaction commit, it will be made visible to consumer.
+     *
+     * <p>After the transaction abort, it will never be visible to consumer.
+     *
+     * @return a watermark builder that can be used to construct the watermark to be sent through this producer.
+     * @see #newWatermark()
+     *
+     * @since 2.9.0
+     */
+    WatermarkBuilder newWatermark(Transaction txn);
+
     /**
      * Get the last sequence id that was published by this producer.
      *

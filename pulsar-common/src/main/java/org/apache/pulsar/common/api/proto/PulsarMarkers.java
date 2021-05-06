@@ -18,6 +18,10 @@ public final class PulsarMarkers {
     TXN_COMMITTING(5, 20),
     TXN_COMMIT(6, 21),
     TXN_ABORT(7, 22),
+    W_UPDATE(8, 30),
+    W_SNAPSHOT(9, 31),
+    W_PRODUCER_ADD(10, 32),
+    W_PRODUCER_REMOVE(11, 33),
     ;
     
     public static final int UNKNOWN_MARKER_VALUE = 0;
@@ -28,6 +32,10 @@ public final class PulsarMarkers {
     public static final int TXN_COMMITTING_VALUE = 20;
     public static final int TXN_COMMIT_VALUE = 21;
     public static final int TXN_ABORT_VALUE = 22;
+    public static final int W_UPDATE_VALUE = 30;
+    public static final int W_SNAPSHOT_VALUE = 31;
+    public static final int W_PRODUCER_ADD_VALUE = 32;
+    public static final int W_PRODUCER_REMOVE_VALUE = 33;
     
     
     public final int getNumber() { return value; }
@@ -42,6 +50,10 @@ public final class PulsarMarkers {
         case 20: return TXN_COMMITTING;
         case 21: return TXN_COMMIT;
         case 22: return TXN_ABORT;
+        case 30: return W_UPDATE;
+        case 31: return W_SNAPSHOT;
+        case 32: return W_PRODUCER_ADD;
+        case 33: return W_PRODUCER_REMOVE;
         default: return null;
       }
     }

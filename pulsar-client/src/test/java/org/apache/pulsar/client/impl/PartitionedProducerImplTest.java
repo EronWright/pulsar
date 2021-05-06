@@ -20,9 +20,10 @@ package org.apache.pulsar.client.impl;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.util.Timer;
-
 import io.netty.util.concurrent.DefaultThreadFactory;
+import lombok.SneakyThrows;
 import org.apache.pulsar.client.api.Message;
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.MessageRouter;
 import org.apache.pulsar.client.api.MessageRoutingMode;
 import org.apache.pulsar.client.api.Producer;
@@ -35,12 +36,16 @@ import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.lang.reflect.Field;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadFactory;
 
+import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertTrue;
 
@@ -123,15 +128,7 @@ public class PartitionedProducerImplTest {
 
     @Test
     public void testGetStats() throws Exception {
-        String topicName = "test-stats";
-        ClientConfigurationData conf = new ClientConfigurationData();
-        conf.setServiceUrl("pulsar://localhost:6650");
-        conf.setStatsIntervalSeconds(100);
-
-        ThreadFactory threadFactory = new DefaultThreadFactory("client-test-stats", Thread.currentThread().isDaemon());
-        EventLoopGroup eventLoopGroup = EventLoopUtil.newEventLoopGroup(conf.getNumIoThreads(), threadFactory);
-
-        PulsarClientImpl clientImpl = new PulsarClientImpl(conf, eventLoopGroup);
+        PulsarClientImpl clientImpl = createPulsarClient();
 
         ProducerConfigurationData producerConfData = new ProducerConfigurationData();
         producerConfData.setMessageRoutingMode(MessageRoutingMode.CustomPartition);
@@ -139,11 +136,88 @@ public class PartitionedProducerImplTest {
 
         assertEquals(Long.parseLong("100"), clientImpl.getConfiguration().getStatsIntervalSeconds());
 
+        String topicName = "test-stats";
         PartitionedProducerImpl impl = new PartitionedProducerImpl(
             clientImpl, topicName, producerConfData,
             1, null, null, null);
 
         impl.getStats();
+    }
+
+    @Test
+    public void testInternalWatermarkWithTxnAsync() throws Exception {
+        PulsarClientImpl clientImpl = createPulsarClient();
+        ProducerConfigurationData producerConfData = new ProducerConfigurationData();
+        producerConfData.setMessageRoutingMode(MessageRoutingMode.CustomPartition);
+        producerConfData.setCustomMessageRouter(new PoisonMessageRouter());
+        producerConfData.setAutoUpdatePartitions(false);
+
+        String topicName = "testInternalWatermarkWithTxnAsync";
+        PartitionedProducerImpl impl = new TestingPartitionedProducerImpl(
+                clientImpl, topicName, producerConfData,
+                2, null, null, null);
+
+        ProducerImpl producer1 = mock(ProducerImpl.class);
+        CompletableFuture send1 = new CompletableFuture();
+        when(producer1.internalSendWithTxnAsync(isA(Message.class), isNull())).thenReturn(send1);
+        getProducers(impl).add(producer1);
+        ProducerImpl producer2 = mock(ProducerImpl.class);
+        CompletableFuture send2 = new CompletableFuture();
+        when(producer2.internalSendWithTxnAsync(isA(Message.class), isNull())).thenReturn(send2);
+        getProducers(impl).add(producer2);
+
+        WatermarkBuilderImpl wb = new WatermarkBuilderImpl(impl);
+        CompletableFuture send = wb.eventTime(1L).sendAsync();
+
+        // verify that the promise completes after all partition-level sends
+        assertFalse(send.isDone());
+        MessageIdImpl mid1 = new MessageIdImpl(0, 0, -1);
+        send1.complete(mid1);
+        assertFalse(send.isDone());
+        MessageIdImpl mid2 = new MessageIdImpl(1, 0, -1);
+        send2.complete(mid2);
+        assertTrue(send.isDone());
+
+        // verify the watermark id
+        WatermarkIdImpl expected = new WatermarkIdImpl(new MessageId[]{mid1, mid2});
+        assertEquals(send.join(), expected);
+    }
+
+    private class PoisonMessageRouter implements MessageRouter {
+        @Override
+        public int choosePartition(Message<?> msg, TopicMetadata metadata) {
+            throw new RuntimeException("poison");
+        }
+    }
+
+    class TestingPartitionedProducerImpl extends PartitionedProducerImpl {
+        public TestingPartitionedProducerImpl(PulsarClientImpl client, String topic, ProducerConfigurationData conf,
+                int numPartitions, CompletableFuture producerCreatedFuture, Schema schema, ProducerInterceptors interceptors) {
+            super(client, topic, conf, numPartitions, producerCreatedFuture, schema, interceptors);
+        }
+
+        @Override
+        protected void start() {
+            // don't start automatically
+        }
+    }
+
+    @SneakyThrows
+    private static List<ProducerImpl<?>> getProducers(PartitionedProducerImpl impl) {
+        Field producers = PartitionedProducerImpl.class.getDeclaredField("producers");
+        producers.setAccessible(true);
+        return (List<ProducerImpl<?>>) producers.get(impl);
+    }
+
+    private PulsarClientImpl createPulsarClient() throws Exception {
+        ClientConfigurationData conf = new ClientConfigurationData();
+        conf.setServiceUrl("pulsar://localhost:6650");
+        conf.setStatsIntervalSeconds(100);
+
+        ThreadFactory threadFactory = new DefaultThreadFactory("client-test-stats", Thread.currentThread().isDaemon());
+        EventLoopGroup eventLoopGroup = EventLoopUtil.newEventLoopGroup(conf.getNumIoThreads(), threadFactory);
+
+        return new PulsarClientImpl(conf, eventLoopGroup);
     }
 
 }

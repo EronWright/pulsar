@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import io.netty.util.Timeout;
 import io.netty.util.TimerTask;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -34,7 +35,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.apache.pulsar.client.api.Message;
@@ -46,6 +46,7 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.PulsarClientException.NotSupportedException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TopicMetadata;
+import org.apache.pulsar.client.api.WatermarkId;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.conf.ProducerConfigurationData;
 import org.apache.pulsar.common.naming.TopicName;
@@ -125,7 +126,7 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
         return producers.stream().map(Producer::getLastSequenceId).mapToLong(Long::longValue).max().orElse(-1);
     }
 
-    private void start() {
+    protected void start() {
         AtomicReference<Throwable> createFail = new AtomicReference<Throwable>();
         AtomicInteger completed = new AtomicInteger();
         for (int partitionIndex = 0; partitionIndex < topicMetadata.numPartitions(); partitionIndex++) {
@@ -189,6 +190,20 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
         checkArgument(partition >= 0 && partition < topicMetadata.numPartitions(),
                 "Illegal partition index chosen by the message routing policy: " + partition);
         return producers.get(partition).internalSendWithTxnAsync(message, txn);
+    }
+
+    @Override
+    CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(final WatermarkImpl watermark, final Transaction txn) {
+        final ArrayList<CompletableFuture<MessageId>> sendFutures = new ArrayList<>();
+        producers.forEach(producer -> {
+            MessageImpl<?> message = watermark.createMessage(producer);
+            CompletableFuture<MessageId> sendFuture = producer.internalSendWithTxnAsync(message, txn);
+            sendFutures.add(sendFuture);
+        });
+       return FutureUtil.waitForAll(sendFutures).thenApply(ignore -> {
+            MessageId[] messageIds = sendFutures.stream().map(CompletableFuture<MessageId>::join).toArray(MessageId[]::new);
+            return new WatermarkIdImpl(messageIds);
+        });
     }
 
     @Override
@@ -317,6 +332,7 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
                                 new ProducerImpl<>(client,
                                     partitionName, conf, new CompletableFuture<>(),
                                     partitionIndex, schema, interceptors);
+                            // TODO lock the producers
                             producers.add(producer);
                             return producer.producerCreatedFuture();
                         }).collect(Collectors.toList());
