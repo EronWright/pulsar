@@ -27,7 +27,7 @@ import java.nio.ByteBuffer;
 public class WatermarkImpl {
     private static final ByteBuffer EMPTY_CONTENT = ByteBuffer.allocate(0);
 
-    private final MessageMetadata.Builder msgMetadataBuilder;
+    final MessageMetadata.Builder msgMetadataBuilder;
 
     private WatermarkImpl(MessageMetadata.Builder msgMetadataBuilder) {
         this.msgMetadataBuilder = msgMetadataBuilder;

@@ -126,7 +126,7 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
         return producers.stream().map(Producer::getLastSequenceId).mapToLong(Long::longValue).max().orElse(-1);
     }
 
-    private void start() {
+    protected void start() {
         AtomicReference<Throwable> createFail = new AtomicReference<Throwable>();
         AtomicInteger completed = new AtomicInteger();
         for (int partitionIndex = 0; partitionIndex < topicMetadata.numPartitions(); partitionIndex++) {
@@ -194,14 +194,13 @@ public class PartitionedProducerImpl<T> extends ProducerBase<T> {
 
     @Override
     CompletableFuture<WatermarkId> internalWatermarkWithTxnAsync(final WatermarkImpl watermark, final Transaction txn) {
-        ArrayList<CompletableFuture<MessageId>> sendFutures = new ArrayList<>();
+        final ArrayList<CompletableFuture<MessageId>> sendFutures = new ArrayList<>();
         producers.forEach(producer -> {
             MessageImpl<?> message = watermark.createMessage(producer);
             CompletableFuture<MessageId> sendFuture = producer.internalSendWithTxnAsync(message, txn);
             sendFutures.add(sendFuture);
         });
-
-        return CompletableFuture.allOf(sendFutures.toArray(new CompletableFuture[0])).thenApply(ignore -> {
+       return FutureUtil.waitForAll(sendFutures).thenApply(ignore -> {
             MessageId[] messageIds = sendFutures.stream().map(CompletableFuture<MessageId>::join).toArray(MessageId[]::new);
             return new WatermarkIdImpl(messageIds);
         });
