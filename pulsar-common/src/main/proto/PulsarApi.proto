@@ -489,6 +489,13 @@ message CommandMessage {
     repeated int64 ack_set = 4;
 }
 
+message CommandWatermark {
+    required uint64 consumer_id       = 1;
+
+    // the timestamp that this watermark occurs. it is typically set by applications.
+    required uint64 timestamp         = 2;
+}
+
 message CommandAck {
     enum AckType {
         Individual = 0;
@@ -883,6 +890,8 @@ message BaseCommand {
         GET_OR_CREATE_SCHEMA = 39;
         GET_OR_CREATE_SCHEMA_RESPONSE = 40;
 
+        WATERMARK = 41;
+
         // transaction related
         NEW_TXN = 50;
         NEW_TXN_RESPONSE = 51;
@@ -962,6 +971,8 @@ message BaseCommand {
 
     optional CommandGetOrCreateSchema getOrCreateSchema = 39;
     optional CommandGetOrCreateSchemaResponse getOrCreateSchemaResponse = 40;
+
+    optional CommandWatermark watermark = 41;
 
     // transaction related
     optional CommandNewTxn newTxn = 50;

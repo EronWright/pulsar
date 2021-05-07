@@ -81,6 +81,11 @@ public class ReaderImpl<T> implements Reader<T> {
                 public void reachedEndOfTopic(Consumer<T> consumer) {
                     readerListener.reachedEndOfTopic(ReaderImpl.this);
                 }
+
+                @Override
+                public void receivedWatermark(Consumer<T> consumer, Watermark watermark) {
+                    readerListener.receivedWatermark(ReaderImpl.this, watermark);
+                }
             });
         }
 
@@ -95,6 +100,10 @@ public class ReaderImpl<T> implements Reader<T> {
                     .stickyHashRange()
                     .ranges(readerConfiguration.getKeyHashRanges())
             );
+        }
+
+        if (readerConfiguration.isWatermarkingEnabled()) {
+            consumerConfiguration.setWatermarkingEnabled(true);
         }
 
         final int partitionIdx = TopicName.getPartitionIndex(readerConfiguration.getTopicName());
@@ -121,10 +130,11 @@ public class ReaderImpl<T> implements Reader<T> {
     @Override
     public Message<T> readNext() throws PulsarClientException {
         Message<T> msg = consumer.receive();
-
-        // Acknowledge message immediately because the reader is based on non-durable subscription. When it reconnects,
-        // it will specify the subscription position anyway
-        consumer.acknowledgeCumulativeAsync(msg);
+        if (msg != null) {
+            // Acknowledge message immediately because the reader is based on non-durable subscription. When it reconnects,
+            // it will specify the subscription position anyway
+            consumer.acknowledgeCumulativeAsync(msg);
+        }
         return msg;
     }
 
@@ -192,5 +202,10 @@ public class ReaderImpl<T> implements Reader<T> {
     @Override
     public CompletableFuture<Void> seekAsync(long timestamp) {
         return consumer.seekAsync(timestamp);
+    }
+
+    @Override
+    public Watermark getLastWatermark() {
+        return consumer.getLastWatermark();
     }
 }

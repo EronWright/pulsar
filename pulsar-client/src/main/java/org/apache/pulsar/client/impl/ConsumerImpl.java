@@ -76,6 +76,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
 import org.apache.pulsar.client.api.PulsarClientException.MessageAcknowledgeException;
 import org.apache.pulsar.client.api.PulsarClientException.TopicDoesNotExistException;
+import org.apache.pulsar.client.api.Watermark;
 import org.apache.pulsar.client.api.transaction.TxnID;
 import org.apache.pulsar.client.impl.conf.ConsumerConfigurationData;
 import org.apache.pulsar.client.impl.crypto.MessageCryptoBc;
@@ -150,6 +151,8 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     private final long startMessageRollbackDurationInSec;
 
     private volatile boolean hasReachedEndOfTopic;
+
+    protected volatile Watermark lastWatermark;
 
     private final MessageCrypto msgCrypto;
 
@@ -832,6 +835,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             client.cleanupConsumer(this);
             failPendingReceive();
             clearReceiverQueue();
+            lastWatermark = null;
             return;
         }
         setClientCnx(cnx);
@@ -847,6 +851,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             if (possibleSendToDeadLetterTopicMessages != null) {
                 possibleSendToDeadLetterTopicMessages.clear();
             }
+            lastWatermark = null;
         }
 
         boolean isDurable = subscriptionMode == SubscriptionMode.Durable;
@@ -1243,6 +1248,44 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
         if (listener != null) {
             triggerListener();
+        }
+    }
+
+    public Watermark getLastWatermark() {
+        lock.readLock().lock();
+        try {
+            return this.lastWatermark;
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    void watermarkReceived(long timestamp, ClientCnx cnx) {
+        if (!this.watermarkingEnabled) {
+            return;
+        }
+
+        boolean watermarkUpdated = false;
+        lock.readLock().lock();
+        try {
+            if (this.lastWatermark == null || this.lastWatermark.getEventTime() < timestamp) {
+                this.lastWatermark = WatermarkImpl.create(timestamp);
+                watermarkUpdated = true;
+
+                // complete the pending receives, to unblock the client to read the latest watermark
+                completePendingReceives(this.pendingReceives);
+                if (this.pendingBatchReceives != null) {
+                    completePendingBatchReceives(this.pendingBatchReceives);
+                }
+
+                // TODO interrupt the synchronous receives
+            }
+        } finally {
+            lock.readLock().unlock();
+        }
+
+        if (listener != null && watermarkUpdated) {
+            triggerListenerForWatermark();
         }
     }
 
@@ -1945,6 +1988,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             seekMessageId = new BatchMessageIdImpl((MessageIdImpl) MessageId.earliest);
             duringSeek.set(true);
             lastDequeuedMessageId = MessageId.earliest;
+            lastWatermark = null;
 
             incomingMessages.clear();
             resetIncomingMessageSize();
@@ -2006,6 +2050,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             seekMessageId = new BatchMessageIdImpl((MessageIdImpl) messageId);
             duringSeek.set(true);
             lastDequeuedMessageId = MessageId.earliest;
+            lastWatermark = null;
 
             incomingMessages.clear();
             resetIncomingMessageSize();

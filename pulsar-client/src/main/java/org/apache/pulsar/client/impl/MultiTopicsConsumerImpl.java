@@ -38,6 +38,7 @@ import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.PulsarClientException.NotSupportedException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.Watermark;
 import org.apache.pulsar.client.impl.conf.ConsumerConfigurationData;
 import org.apache.pulsar.client.impl.transaction.TransactionImpl;
 import org.apache.pulsar.client.util.ConsumerName;
@@ -533,6 +534,14 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
             });
 
         return unsubscribeFuture;
+    }
+
+    @Override
+    public Watermark getLastWatermark() {
+        return consumers.values().stream()
+                .map(c -> (WatermarkImpl) c.getLastWatermark())
+                .min(WatermarkImplComparator.getInstance())
+                .orElse(null);
     }
 
     @Override

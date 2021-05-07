@@ -45,6 +45,25 @@ public interface ReaderListener<T> extends Serializable {
     void received(Reader<T> reader, Message<T> msg);
 
     /**
+     * This method is called whenever a new watermark is received.
+     *
+     * <p>Watermarks are guaranteed to be delivered in order (with respect to messages) and from the same thread
+     * for a single consumer.
+     *
+     * <p>This method will only be called once for each watermark, unless either application or broker crashes.
+     *
+     * <p>Application is responsible for handling any exception that could be thrown while processing the watermark.
+     *
+     * @param reader
+     *            the Reader object from where the watermark was received
+     * @param watermark
+     *            the watermark object
+     */
+    default void receivedWatermark(Reader<T> reader, Watermark watermark) {
+        // no-op
+    }
+
+    /**
      * Get the notification when a topic is terminated.
      *
      * @param reader
