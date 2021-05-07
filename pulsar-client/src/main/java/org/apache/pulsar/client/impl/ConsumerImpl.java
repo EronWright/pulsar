@@ -835,6 +835,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             client.cleanupConsumer(this);
             failPendingReceive();
             clearReceiverQueue();
+            lastWatermark = null;
             return;
         }
         setClientCnx(cnx);
@@ -850,6 +851,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             if (possibleSendToDeadLetterTopicMessages != null) {
                 possibleSendToDeadLetterTopicMessages.clear();
             }
+            lastWatermark = null;
         }
 
         boolean isDurable = subscriptionMode == SubscriptionMode.Durable;
@@ -1986,6 +1988,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             seekMessageId = new BatchMessageIdImpl((MessageIdImpl) MessageId.earliest);
             duringSeek.set(true);
             lastDequeuedMessageId = MessageId.earliest;
+            lastWatermark = null;
 
             incomingMessages.clear();
             resetIncomingMessageSize();
@@ -2047,6 +2050,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             seekMessageId = new BatchMessageIdImpl((MessageIdImpl) messageId);
             duringSeek.set(true);
             lastDequeuedMessageId = MessageId.earliest;
+            lastWatermark = null;
 
             incomingMessages.clear();
             resetIncomingMessageSize();

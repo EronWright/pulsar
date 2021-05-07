@@ -26,7 +26,7 @@ import org.apache.pulsar.common.classification.*;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-public interface Watermark {
+public interface Watermark extends Comparable<Watermark> {
     /**
      * Get the event time associated with this watermark.  A time of <code>t</code> declares
      * that event time has reached time <code>t</code> for a given consumer, meaning that there should

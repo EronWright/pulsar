@@ -73,6 +73,12 @@ public class WatermarkImpl implements Watermark {
                 "outgoing watermark should contain msgMetadataBuilder");
         return MessageImpl.create(msgMetadataBuilder.clone(), EMPTY_CONTENT, Schema.BYTES);
     }
+
+    @Override
+    public int compareTo(Watermark o) {
+        WatermarkImpl other = (WatermarkImpl) o;
+        return Long.compare(this.eventTime, other.eventTime);
+    }
 }
 
 class WatermarkImplComparator implements Comparator<WatermarkImpl> {
