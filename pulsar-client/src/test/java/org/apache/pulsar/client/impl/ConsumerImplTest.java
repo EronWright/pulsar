@@ -60,6 +60,7 @@ public class ConsumerImplTest {
         String topic = "non-persistent://tenant/ns1/my-topic";
 
         consumerConf.setSubscriptionName("test-sub");
+        consumerConf.setWatermarkingEnabled(true);
         consumer = ConsumerImpl.newConsumerImpl(client, topic, consumerConf,
                 executorProvider, -1, false, subscribeFuture, null, null, null,
                 true);
@@ -168,5 +169,28 @@ public class ConsumerImplTest {
         future.cancel(true);
         // then
         Assert.assertFalse(consumer.hasPendingBatchReceive());
+    }
+
+    @Test
+    public void testWatermarkReceived_lastWatermark() {
+        ClientCnx cnx = mock(ClientCnx.class);
+        consumer.watermarkReceived(1L, cnx);
+        Assert.assertEquals(WatermarkImpl.create(1L), consumer.lastWatermark);
+        consumer.watermarkReceived(2L, cnx);
+        Assert.assertEquals(WatermarkImpl.create(2L), consumer.lastWatermark);
+        consumer.watermarkReceived(1L, cnx);
+        Assert.assertEquals(WatermarkImpl.create(2L), consumer.lastWatermark);
+    }
+
+    @Test
+    public void testWatermarkReceived_CompletePendingReceives() {
+        CompletableFuture<Message<byte[]>> receiveFuture = new CompletableFuture<>();
+        consumer.pendingReceives.add(receiveFuture);
+        consumer.completePendingReceives(consumer.pendingReceives);
+
+        Assert.assertTrue(consumer.pendingReceives.isEmpty());
+        Message<byte[]> msg = receiveFuture.join();
+        Assert.assertFalse(receiveFuture.isCompletedExceptionally());
+        Assert.assertNull(msg);
     }
 }

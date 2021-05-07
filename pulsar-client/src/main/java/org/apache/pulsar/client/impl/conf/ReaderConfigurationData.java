@@ -56,6 +56,8 @@ public class ReaderConfigurationData<T> implements Serializable, Cloneable {
 
     private List<Range> keyHashRanges;
 
+    private boolean watermarkingEnabled;
+
     @SuppressWarnings("unchecked")
     public ReaderConfigurationData<T> clone() {
         try {

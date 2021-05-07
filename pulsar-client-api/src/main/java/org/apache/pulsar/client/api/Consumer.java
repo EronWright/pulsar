@@ -29,6 +29,9 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 /**
  * An interface that abstracts behavior of Pulsar's consumer.
  *
+ * <p>If watermarking is enabled, the various receive methods MAY return a null message to indicate that the last watermark
+ * has changed.
+ *
  * <p>All the operations on the consumer instance are thread safe.
  */
 @InterfaceAudience.Public
@@ -665,4 +668,9 @@ public interface Consumer<T> extends Closeable {
      * @return The last disconnected timestamp of the consumer
      */
     long getLastDisconnectedTimestamp();
+
+    /**
+     * @return The latest watermark, or null if watermarking is not enabled or a watermark has not been received.
+     */
+    Watermark getLastWatermark();
 }

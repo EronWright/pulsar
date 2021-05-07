@@ -84,6 +84,7 @@ import org.apache.pulsar.common.api.proto.PulsarApi.CommandReachedEndOfTopic;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSendError;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSendReceipt;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSuccess;
+import org.apache.pulsar.common.api.proto.PulsarApi.CommandWatermark;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageIdData;
 import org.apache.pulsar.common.api.proto.PulsarApi.ServerError;
 import org.apache.pulsar.common.protocol.schema.SchemaVersion;
@@ -415,6 +416,19 @@ public class ClientCnx extends PulsarHandler {
         ConsumerImpl<?> consumer = consumers.get(cmdMessage.getConsumerId());
         if (consumer != null) {
             consumer.messageReceived(cmdMessage.getMessageId(), cmdMessage.getRedeliveryCount(), cmdMessage.getAckSetList(), headersAndPayload, this);
+        }
+    }
+
+    @Override
+    protected void handleWatermark(CommandWatermark cmdWatermark) {
+        checkArgument(state == State.Ready);
+
+        if (log.isDebugEnabled()) {
+            log.debug("{} Received a watermark from the server: {}", ctx.channel(), cmdWatermark);
+        }
+        ConsumerImpl<?> consumer = consumers.get(cmdWatermark.getConsumerId());
+        if (consumer != null) {
+            consumer.watermarkReceived(cmdWatermark.getTimestamp(), this);
         }
     }
 

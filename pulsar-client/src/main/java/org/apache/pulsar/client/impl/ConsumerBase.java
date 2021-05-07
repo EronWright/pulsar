@@ -47,6 +47,7 @@ import org.apache.pulsar.client.api.Messages;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.SubscriptionType;
+import org.apache.pulsar.client.api.Watermark;
 import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.client.impl.conf.ConsumerConfigurationData;
 import org.apache.pulsar.client.impl.transaction.TransactionImpl;
@@ -87,6 +88,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
             .newUpdater(ConsumerBase.class, "incomingMessagesSize");
     protected volatile long incomingMessagesSize = 0;
     protected volatile Timeout batchReceiveTimeout = null;
+    protected final boolean watermarkingEnabled;
     protected final Lock reentrantLock = new ReentrantLock();
 
     protected ConsumerBase(PulsarClientImpl client, String topic, ConsumerConfigurationData<T> conf,
@@ -139,6 +141,8 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         if (batchReceivePolicy.getTimeoutMs() > 0) {
             batchReceiveTimeout = client.timer().newTimeout(this::pendingBatchReceiveTask, batchReceivePolicy.getTimeoutMs(), TimeUnit.MILLISECONDS);
         }
+
+        this.watermarkingEnabled = conf.isWatermarkingEnabled();
     }
 
     @Override
@@ -244,6 +248,18 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         });
     }
 
+    protected void completePendingReceives(ConcurrentLinkedQueue<CompletableFuture<Message<T>>> pendingReceives) {
+        while (!pendingReceives.isEmpty()) {
+            CompletableFuture<Message<T>> receiveFuture = pendingReceives.poll();
+            if (receiveFuture == null) {
+                break;
+            }
+            if (!receiveFuture.isDone()) {
+                receiveFuture.complete(null);
+            }
+        }
+    }
+
     protected void failPendingReceives(ConcurrentLinkedQueue<CompletableFuture<Message<T>>> pendingReceives) {
         while (!pendingReceives.isEmpty()) {
             CompletableFuture<Message<T>> receiveFuture = pendingReceives.poll();
@@ -254,6 +270,18 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
                 receiveFuture.completeExceptionally(
                         new PulsarClientException.AlreadyClosedException(String.format("The consumer which subscribes the topic %s with subscription name %s " +
                                 "was already closed when cleaning and closing the consumers", topic, subscription)));
+            }
+        }
+    }
+
+    protected void completePendingBatchReceives(ConcurrentLinkedQueue<OpBatchReceive<T>> pendingBatchReceives) {
+        while (!pendingBatchReceives.isEmpty()) {
+            OpBatchReceive<T> opBatchReceive = pendingBatchReceives.poll();
+            if (opBatchReceive == null || opBatchReceive.future == null) {
+                break;
+            }
+            if (!opBatchReceive.future.isDone()) {
+                opBatchReceive.future.complete(null);
             }
         }
     }
@@ -883,6 +911,28 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         } catch (Throwable t) {
             log.error("[{}][{}] Message listener error in processing message: {}", topic, subscription,
                     msg.getMessageId(), t);
+        }
+    }
+
+    protected void triggerListenerForWatermark() {
+        // Trigger the notification on the message listener in a separate thread to avoid blocking the networking
+        // thread while the watermark processing happens
+        final Watermark watermark = this.getLastWatermark();
+        if (watermark != null) {
+            pinnedExecutor.execute(() -> callMessageListenerForWatermark(watermark));
+        }
+    }
+
+    protected void callMessageListenerForWatermark(Watermark watermark) {
+        try {
+            if (log.isDebugEnabled()) {
+                log.debug("[{}][{}] Calling message listener for watermark {}", topic, subscription,
+                        watermark.getEventTime());
+            }
+            listener.receivedWatermark(ConsumerBase.this, watermark);
+        } catch (Throwable t) {
+            log.error("[{}][{}] Message listener error in processing watermark: {}", topic, subscription,
+                    watermark.getEventTime(), t);
         }
     }
 

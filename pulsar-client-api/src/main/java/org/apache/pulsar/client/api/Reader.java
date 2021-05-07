@@ -26,6 +26,9 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 
 /**
  * A Reader can be used to scan through all the messages currently available in a topic.
+ *
+ * <p>If watermarking is enabled, the various read methods MAY return a null message to indicate that the last watermark
+ * has changed.
  */
 @InterfaceAudience.Public
 @InterfaceStability.Stable
@@ -39,7 +42,8 @@ public interface Reader<T> extends Closeable {
     /**
      * Read the next message in the topic.
      *
-     * <p>This method will block until a message is available.
+     * <p>This method will block until a message is available.  If watermarking is enabled,
+     * this method will block until a message is available or a watermark arrives.
      *
      * @return the next message
      * @throws PulsarClientException
@@ -183,4 +187,9 @@ public interface Reader<T> extends Closeable {
      * @return a future to track the completion of the seek operation
      */
     CompletableFuture<Void> seekAsync(long timestamp);
+
+    /**
+     * @return The latest watermark, or null if watermarking is not enabled or a watermark has not been received.
+     */
+    Watermark getLastWatermark();
 }

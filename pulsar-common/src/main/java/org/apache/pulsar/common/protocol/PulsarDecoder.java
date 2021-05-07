@@ -76,6 +76,7 @@ import org.apache.pulsar.common.api.proto.PulsarApi.CommandSendReceipt;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSubscribe;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSuccess;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandUnsubscribe;
+import org.apache.pulsar.common.api.proto.PulsarApi.CommandWatermark;
 import org.apache.pulsar.common.intercept.InterceptException;
 import org.apache.pulsar.common.util.protobuf.ByteBufCodedInputStream;
 import org.slf4j.Logger;
@@ -210,6 +211,16 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 cmd.getMessage().recycle();
                 break;
             }
+
+            case WATERMARK:
+                checkArgument(cmd.hasWatermark());
+                try {
+                    handleWatermark(cmd.getWatermark());
+                } finally {
+                    cmd.getWatermark().recycle();
+                }
+                break;
+
             case PRODUCER:
                 checkArgument(cmd.hasProducer());
                 try {
@@ -566,6 +577,10 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
     }
 
     protected void handleMessage(CommandMessage cmdMessage, ByteBuf headersAndPayload) {
+        throw new UnsupportedOperationException();
+    }
+
+    protected void handleWatermark(CommandWatermark cmdWatermark) {
         throw new UnsupportedOperationException();
     }
 
