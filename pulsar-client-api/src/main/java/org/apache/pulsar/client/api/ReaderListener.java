@@ -52,7 +52,7 @@ public interface ReaderListener<T> extends Serializable {
      *
      * <p>This method will only be called once for each watermark, unless either application or broker crashes.
      *
-     * <p>Application is responsible of handling any exception that could be thrown while processing the watermark.
+     * <p>Application is responsible for handling any exception that could be thrown while processing the watermark.
      *
      * @param reader
      *            the Reader object from where the watermark was received
