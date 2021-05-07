@@ -29,8 +29,8 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 /**
  * An interface that abstracts behavior of Pulsar's consumer.
  *
- * <p>If watermarking is enabled, the various receive methods MAY return a null message to indicate that the last watermark
- * has changed.
+ * <p>If watermarking is enabled, the various receive methods MAY return a null message to indicate that
+ * the last watermark has changed.
  *
  * <p>All the operations on the consumer instance are thread safe.
  */
