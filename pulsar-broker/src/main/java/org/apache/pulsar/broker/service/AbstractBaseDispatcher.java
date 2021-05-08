@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.bookkeeper.mledger.Entry;
@@ -47,6 +48,11 @@ import org.apache.pulsar.common.protocol.Markers;
 public abstract class AbstractBaseDispatcher implements Dispatcher {
 
     protected final Subscription subscription;
+
+
+    protected static final AtomicReferenceFieldUpdater<AbstractBaseDispatcher, Long> LAST_WATERMARK_UPDATER =
+            AtomicReferenceFieldUpdater.newUpdater(AbstractBaseDispatcher.class, Long.class, "lastWatermark");
+    private volatile Long lastWatermark = null;
 
     protected AbstractBaseDispatcher(Subscription subscription) {
         this.subscription = subscription;
@@ -235,4 +241,10 @@ public abstract class AbstractBaseDispatcher implements Dispatcher {
         });
     }
 
+    protected void sendWatermark(Consumer consumer) {
+        Long watermark = LAST_WATERMARK_UPDATER.get(this);
+        if (watermark != null) {
+            consumer.sendWatermark(watermark);
+        }
+    }
 }

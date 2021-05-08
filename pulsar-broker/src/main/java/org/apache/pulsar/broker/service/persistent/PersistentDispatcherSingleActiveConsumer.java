@@ -115,9 +115,12 @@ public final class PersistentDispatcherSingleActiveConsumer extends AbstractDisp
             }
             cursor.rewind();
 
-            Consumer activeConsumer = ACTIVE_CONSUMER_UPDATER.get(this);
+            final Consumer activeConsumer = ACTIVE_CONSUMER_UPDATER.get(this);
             notifyActiveConsumerChanged(activeConsumer);
-            readMoreEntries(activeConsumer);
+            topic.getBrokerService().getTopicOrderedExecutor().executeOrdered(topicName, SafeRun.safeRun(() -> {
+                sendWatermark(activeConsumer);
+                readMoreEntries(activeConsumer);
+            }));
             return;
         }
 
@@ -135,9 +138,12 @@ public final class PersistentDispatcherSingleActiveConsumer extends AbstractDisp
             }
             cursor.rewind();
 
-            Consumer activeConsumer = ACTIVE_CONSUMER_UPDATER.get(this);
+            final Consumer activeConsumer = ACTIVE_CONSUMER_UPDATER.get(this);
             notifyActiveConsumerChanged(activeConsumer);
-            readMoreEntries(activeConsumer);
+            topic.getBrokerService().getTopicOrderedExecutor().executeOrdered(topicName, SafeRun.safeRun(() -> {
+                sendWatermark(activeConsumer);
+                readMoreEntries(activeConsumer);
+            }));
             readOnActiveConsumerTask = null;
         }, serviceConfig.getActiveConsumerFailoverDelayTimeMillis(), TimeUnit.MILLISECONDS);
     }
@@ -551,6 +557,24 @@ public final class PersistentDispatcherSingleActiveConsumer extends AbstractDisp
             }));
         }, waitTimeMillis, TimeUnit.MILLISECONDS);
 
+    }
+
+    @Override
+    public void watermarkUpdated(Long watermark) {
+        LAST_WATERMARK_UPDATER.set(this, watermark);
+        if (watermark == null) {
+            return;
+        }
+
+        Consumer activeConsumer = ACTIVE_CONSUMER_UPDATER.get(this);
+        if (activeConsumer == null) {
+            // no active consumer; watermark will be sent later.
+            return;
+        }
+
+        topic.getBrokerService().getTopicOrderedExecutor().executeOrdered(topicName, SafeRun.safeRun(() -> {
+            sendWatermark(activeConsumer);
+        }));
     }
 
     @Override

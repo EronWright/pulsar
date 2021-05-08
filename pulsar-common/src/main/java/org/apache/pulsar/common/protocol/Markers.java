@@ -292,6 +292,12 @@ public class Markers {
         }
     }
 
+    public static boolean isWatermarkUpdateMarker(MessageMetadata msgMetadata) {
+        return msgMetadata != null
+                && msgMetadata.hasMarkerType()
+                && msgMetadata.getMarkerType() == MarkerType.W_UPDATE_VALUE;
+    }
+
     @SneakyThrows
     private static ByteBuf newTxnMarker(MarkerType markerType, long sequenceId, long txnMostBits,
                                         long txnLeastBits, Optional<List<MessageIdData>> messageIdDataList) {

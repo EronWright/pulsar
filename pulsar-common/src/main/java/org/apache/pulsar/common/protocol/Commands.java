@@ -105,6 +105,7 @@ import org.apache.pulsar.common.api.proto.PulsarApi.CommandSubscribe.InitialPosi
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSubscribe.SubType;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandSuccess;
 import org.apache.pulsar.common.api.proto.PulsarApi.CommandUnsubscribe;
+import org.apache.pulsar.common.api.proto.PulsarApi.CommandWatermark;
 import org.apache.pulsar.common.api.proto.PulsarApi.FeatureFlags;
 import org.apache.pulsar.common.api.proto.PulsarApi.KeyLongValue;
 import org.apache.pulsar.common.api.proto.PulsarApi.KeySharedMeta;
@@ -828,6 +829,18 @@ public class Commands {
                 BaseCommand.newBuilder().setType(Type.REACHED_END_OF_TOPIC).setReachedEndOfTopic(reachedEndOfTopic));
         reachedEndOfTopicBuilder.recycle();
         reachedEndOfTopic.recycle();
+        return res;
+    }
+
+    public static ByteBuf newWatermark(long consumerId, long timestamp) {
+        CommandWatermark.Builder watermarkBuilder = CommandWatermark.newBuilder();
+        watermarkBuilder.setConsumerId(consumerId);
+        watermarkBuilder.setTimestamp(timestamp);
+        CommandWatermark watermark = watermarkBuilder.build();
+        ByteBuf res = serializeWithSize(
+                BaseCommand.newBuilder().setType(Type.WATERMARK).setWatermark(watermark));
+        watermarkBuilder.recycle();
+        watermark.recycle();
         return res;
     }
 
@@ -2168,5 +2181,9 @@ public class Commands {
 
     public static boolean peerSupportsGetOrCreateSchema(int peerVersion) {
         return peerVersion >= ProtocolVersion.v15.getNumber();
+    }
+
+    public static boolean peerSupportsWatermarking(int peerVersion) {
+        return peerVersion >= ProtocolVersion.v16.getNumber();
     }
 }

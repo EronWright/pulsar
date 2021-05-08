@@ -268,6 +268,10 @@ public class Consumer {
         }
     }
 
+    public void sendWatermark(long timestamp) {
+        cnx.getCommandSender().sendWatermark(consumerId, topicName, subscription, partitionIdx, timestamp);
+    }
+
     public boolean isWritable() {
         return cnx.isWritable();
     }

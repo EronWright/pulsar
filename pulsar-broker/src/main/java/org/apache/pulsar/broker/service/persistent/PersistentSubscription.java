@@ -53,6 +53,9 @@ import org.apache.pulsar.broker.service.BrokerServiceException.ServerMetadataExc
 import org.apache.pulsar.broker.service.BrokerServiceException.SubscriptionBusyException;
 import org.apache.pulsar.broker.service.BrokerServiceException.SubscriptionFencedException;
 import org.apache.pulsar.broker.service.BrokerServiceException.SubscriptionInvalidCursorPosition;
+import org.apache.pulsar.broker.service.eventtime.WatermarkGenerator;
+import org.apache.pulsar.broker.service.eventtime.WatermarkGeneratorImpl;
+import org.apache.pulsar.broker.service.eventtime.WatermarkGeneratorListener;
 import org.apache.pulsar.broker.transaction.pendingack.PendingAckHandle;
 import org.apache.pulsar.broker.transaction.pendingack.impl.PendingAckHandleDisabled;
 import org.apache.pulsar.broker.transaction.pendingack.impl.PendingAckHandleImpl;
@@ -76,7 +79,7 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PersistentSubscription implements Subscription {
+public class PersistentSubscription implements Subscription, WatermarkGeneratorListener {
     protected final PersistentTopic topic;
     protected final ManagedCursor cursor;
     protected volatile Dispatcher dispatcher;
@@ -111,6 +114,8 @@ public class PersistentSubscription implements Subscription {
     private volatile boolean isDeleteTransactionMarkerInProcess = false;
     private final PendingAckHandle pendingAckHandle;
 
+    private final WatermarkGenerator watermarkGenerator;
+
     static {
         REPLICATED_SUBSCRIPTION_CURSOR_PROPERTIES.put(REPLICATED_SUBSCRIPTION_PROPERTY, 1L);
     }
@@ -125,6 +130,11 @@ public class PersistentSubscription implements Subscription {
 
     public PersistentSubscription(PersistentTopic topic, String subscriptionName, ManagedCursor cursor,
             boolean replicated) {
+        this(topic, subscriptionName, cursor, replicated, null);
+    }
+
+    public PersistentSubscription(PersistentTopic topic, String subscriptionName, ManagedCursor cursor,
+            boolean replicated, ManagedCursor watermarkCursor) {
         this.topic = topic;
         this.cursor = cursor;
         this.topicName = topic.getName();
@@ -137,6 +147,15 @@ public class PersistentSubscription implements Subscription {
         } else {
             this.pendingAckHandle = new PendingAckHandleDisabled();
         }
+
+        if (watermarkCursor != null) {
+            this.watermarkGenerator = new WatermarkGeneratorImpl(topic.getBrokerService().getPulsar(), topic, watermarkCursor, this);
+            this.watermarkGenerator.seek(cursor.getMarkDeletedPosition().getNext());
+        }
+        else {
+            this.watermarkGenerator = null;
+        }
+
         IS_FENCED_UPDATER.set(this, FALSE);
     }
 
@@ -222,6 +241,11 @@ public class PersistentSubscription implements Subscription {
                 break;
             default:
                 throw new ServerMetadataException("Unsupported subscription type");
+            }
+
+            // set the initial watermark
+            if (this.watermarkGenerator != null) {
+                dispatcher.watermarkUpdated(this.watermarkGenerator.getWatermark());
             }
 
             if (previousDispatcher != null) {
@@ -451,9 +475,12 @@ public class PersistentSubscription implements Subscription {
         }
     };
 
-    private void notifyTheMarkDeletePositionMoveForwardIfNeeded(Position oldPosition) {
+    void notifyTheMarkDeletePositionMoveForwardIfNeeded(Position oldPosition) {
         PositionImpl oldMD = (PositionImpl) oldPosition;
         PositionImpl newMD = (PositionImpl) cursor.getMarkDeletedPosition();
+        if(watermarkGenerator != null && newMD.compareTo(oldMD) > 0){
+            watermarkGenerator.seek(newMD.getNext());
+        }
         if(dispatcher != null && newMD.compareTo(oldMD) > 0){
             dispatcher.markDeletePositionMoveForward();
         }
@@ -1082,4 +1109,11 @@ public class PersistentSubscription implements Subscription {
     }
 
     private static final Logger log = LoggerFactory.getLogger(PersistentSubscription.class);
+
+    @Override
+    public synchronized void watermarkUpdated(WatermarkGenerator clock, long watermark) {
+        if (dispatcher != null) {
+            dispatcher.watermarkUpdated(watermark);
+        }
+    }
 }

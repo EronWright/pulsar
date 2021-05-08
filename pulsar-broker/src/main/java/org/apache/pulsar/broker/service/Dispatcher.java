@@ -125,4 +125,7 @@ public interface Dispatcher {
         // No-op
     }
 
+    default void watermarkUpdated(Long watermark) {
+        // No-op
+    }
 }

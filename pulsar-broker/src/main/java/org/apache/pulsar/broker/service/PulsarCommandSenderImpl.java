@@ -244,6 +244,19 @@ public class PulsarCommandSenderImpl implements PulsarCommandSender {
     }
 
     @Override
+    public void sendWatermark(long consumerId, String topicName, Subscription subscription,
+            int partitionIdx, long timestamp) {
+
+        if (cnx.getRemoteEndpointProtocolVersion() >= PulsarApi.ProtocolVersion.v16_VALUE) {
+            if (log.isDebugEnabled()) {
+                log.debug("[{}-{}] Sending watermark to consumerId {}, timestamp {}", topicName, subscription,
+                        consumerId, timestamp);
+            }
+            cnx.ctx().writeAndFlush(Commands.newWatermark(consumerId, timestamp));
+        }
+    }
+
+    @Override
     public ChannelPromise sendMessagesToConsumer(long consumerId, String topicName, Subscription subscription,
             int partitionIdx, List<Entry> entries, EntryBatchSizes batchSizes, EntryBatchIndexesAcks batchIndexesAcks,
             RedeliveryTracker redeliveryTracker) {

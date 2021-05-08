@@ -800,7 +800,15 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                     return FutureUtil.failedFuture(e);
                 }
 
-                subscription = new PersistentSubscription(this, subscriptionName, cursor, false);
+                ManagedCursor watermarkCursor;
+                try {
+                    // TODO optimize to start from a snapshot
+                    watermarkCursor = ledger.newNonDurableCursor(PositionImpl.earliest, subscriptionName, InitialPosition.Earliest);
+                } catch (ManagedLedgerException e) {
+                    return FutureUtil.failedFuture(e);
+                }
+
+                subscription = new PersistentSubscription(this, subscriptionName, cursor, false, watermarkCursor);
                 subscriptions.put(subscriptionName, subscription);
             }
 
