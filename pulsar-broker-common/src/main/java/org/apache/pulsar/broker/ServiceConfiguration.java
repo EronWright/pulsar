@@ -452,6 +452,12 @@ public class ServiceConfiguration implements PulsarConfiguration {
     private int brokerDeduplicationProducerInactivityTimeoutMinutes = 360;
 
     @FieldContext(
+            category = CATEGORY_POLICIES,
+            doc = "Maximum number of producers to be considered for watermarking purposes"
+    )
+    private int brokerWatermarkingMaxNumberOfProducers = 10000;
+
+    @FieldContext(
         category = CATEGORY_POLICIES,
         doc = "When a namespace is created without specifying the number of bundle, this"
             + " value will be used as the default")

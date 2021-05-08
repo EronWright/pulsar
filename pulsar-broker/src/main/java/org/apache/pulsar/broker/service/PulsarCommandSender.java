@@ -71,6 +71,9 @@ public interface PulsarCommandSender {
 
     void sendReachedEndOfTopic(long consumerId);
 
+    void sendWatermark(long consumerId, String topicName, Subscription subscription,
+            int partitionIdx, long timestamp);
+
     Future<Void> sendMessagesToConsumer(long consumerId, String topicName, Subscription subscription,
             int partitionIdx, List<Entry> entries, EntryBatchSizes batchSizes, EntryBatchIndexesAcks batchIndexesAcks,
             RedeliveryTracker redeliveryTracker);

@@ -122,7 +122,12 @@ public abstract class MockedPulsarServiceBaseTest {
     }
 
     protected PulsarClient newPulsarClient(String url, int intervalInSecs) throws PulsarClientException {
-        return PulsarClient.builder().serviceUrl(url).statsInterval(intervalInSecs, TimeUnit.SECONDS).build();
+        return PulsarClient.builder()
+                .serviceUrl(url)
+                .statsInterval(intervalInSecs, TimeUnit.SECONDS)
+                .connectionTimeout(5, TimeUnit.MINUTES)
+                .operationTimeout(5, TimeUnit.MINUTES)
+                .build();
     }
 
     protected final void internalSetupForStatsTest() throws Exception {

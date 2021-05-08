@@ -150,6 +150,8 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
         consumerList.add(consumer);
         consumerList.sort((c1, c2) -> c1.getPriorityLevel() - c2.getPriorityLevel());
         consumerSet.add(consumer);
+
+        topic.getBrokerService().executor().execute(() -> sendWatermark(consumer));
     }
 
     private boolean isConsumersExceededOnSubscription() {
@@ -622,6 +624,17 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
         } else {
             return lastIndividualDeletedRangeFromCursorRecovery.upperEndpoint()
                     .compareTo((PositionImpl) cursor.getReadPosition()) > 0;
+        }
+    }
+
+    @Override
+    public synchronized void watermarkUpdated(Long watermark) {
+        LAST_WATERMARK_UPDATER.set(this, watermark);
+        if (watermark == null) {
+            return;
+        }
+        for (Consumer consumer : consumerList) {
+            topic.getBrokerService().executor().execute(() -> sendWatermark(consumer));
         }
     }
 

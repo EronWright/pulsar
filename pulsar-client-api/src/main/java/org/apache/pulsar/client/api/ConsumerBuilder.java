@@ -698,4 +698,11 @@ public interface ConsumerBuilder<T> extends Cloneable {
      * @return
      */
     ConsumerBuilder<T> expireTimeOfIncompleteChunkedMessage(long duration, TimeUnit unit);
+
+    /**
+     * Enable or disable receiving watermarks.
+     * @param watermarkingEnabled true if watermarks should be delivered.
+     * @return
+     */
+    ConsumerBuilder<T> enableWatermarking(boolean watermarkingEnabled);
 }
