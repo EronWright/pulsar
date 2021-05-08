@@ -478,6 +478,11 @@ public class ClientCnx extends PulsarHandler {
     }
 
     @Override
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        super.channelRead(ctx, msg);
+    }
+
+    @Override
     protected void handleProducerSuccess(CommandProducerSuccess success) {
         checkArgument(state == State.Ready);
 

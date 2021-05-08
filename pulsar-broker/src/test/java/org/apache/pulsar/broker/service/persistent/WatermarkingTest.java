@@ -19,40 +19,31 @@
 package org.apache.pulsar.broker.service.persistent;
 
 import lombok.Cleanup;
-import org.apache.pulsar.broker.service.Dispatcher;
-import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.api.Consumer;
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.Producer;
 import org.apache.pulsar.client.api.ProducerConsumerBase;
-import org.apache.pulsar.client.api.PulsarClientException;
 import org.apache.pulsar.client.api.Schema;
+import org.apache.pulsar.client.api.SubscriptionMode;
 import org.apache.pulsar.client.api.SubscriptionType;
-import org.apache.pulsar.common.policies.data.DelayedDeliveryPolicies;
-import org.awaitility.Awaitility;
-import org.testng.Assert;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
 
 public class WatermarkingTest extends ProducerConsumerBase {
 
     @Override
     @BeforeClass
     public void setup() throws Exception {
-        conf.setSystemTopicEnabled(true);
-        conf.setTopicLevelPoliciesEnabled(true);
-        conf.setDelayedDeliveryTickTimeMillis(1024);
         super.internalSetup();
         super.producerBaseSetup();
     }
@@ -63,7 +54,9 @@ public class WatermarkingTest extends ProducerConsumerBase {
         super.internalCleanup();
     }
 
-    @Test(timeOut = 60000)
+    private static final int NUM_MESSAGES = 10;
+
+    @Test()
     public void testWatermarking()
             throws Exception {
         String topic = "testWatermarking-" + System.nanoTime();
@@ -71,16 +64,19 @@ public class WatermarkingTest extends ProducerConsumerBase {
         @Cleanup
         Consumer<String> consumer = pulsarClient.newConsumer(Schema.STRING)
                 .topic(topic)
-                .subscriptionName("consumer")
+                .subscriptionName("consumer-1")
                 .subscriptionType(SubscriptionType.Failover)
+                .subscriptionMode(SubscriptionMode.NonDurable)
+                .enableWatermarking(true)
                 .subscribe();
 
         @Cleanup
         Producer<String> producer = pulsarClient.newProducer(Schema.STRING)
                 .topic(topic)
+                .producerName("producer-1")
                 .create();
 
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < NUM_MESSAGES; i++) {
             producer.newMessage()
                     .value("msg-" + i)
                     .eventTime(System.currentTimeMillis())
@@ -89,25 +85,27 @@ public class WatermarkingTest extends ProducerConsumerBase {
         producer.newWatermark().eventTime(System.currentTimeMillis()).sendAsync();
         producer.flush();
 
-        Message<String> msg;
-
-        for (int i = 0; i < 10; i++) {
-            msg = consumer.receive();
+        List<Message> unacked = new ArrayList<>();
+        for (int i = 0; i < NUM_MESSAGES; i++) {
+            Message<String> msg = consumer.receive();
             assertNotNull(msg);
-            System.err.printf("%s: %s\n", msg.getMessageId(), msg.getValue());
             assertEquals(msg.getValue(), "msg-" + i);
-            if (i < 9) {
-                // watermark could be received any time after the last message
-                assertNull(consumer.getLastWatermark());
-            }
+
+            // assert that no watermark has been received until after the messages are acked
+            assertNull(consumer.getLastWatermark());
+            unacked.add(msg);
         }
 
-        // wait for the expected watermark
-        msg = consumer.receiveAsync().join();
-        if (msg != null) {
-            System.err.printf("%s: %s\n", msg.getMessageId(), msg.getValue());
+        // wait for the expected watermark (which should not arrive until we ack the messages)
+        assertNull(consumer.getLastWatermark());
+        CompletableFuture<Message<String>> watermark = consumer.receiveAsync();
+
+        for (Message msg : unacked) {
+            consumer.acknowledge(msg);
         }
-        assertNull(msg, "did not expect a message: " + msg.getValue());
+
+        Message<String> marker = watermark.get(60, TimeUnit.SECONDS);
+        assertNull(marker);
         assertNotNull(consumer.getLastWatermark(), "expected a watermark");
     }
 }

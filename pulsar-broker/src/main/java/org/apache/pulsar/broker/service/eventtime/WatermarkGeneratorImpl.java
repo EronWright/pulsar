@@ -149,7 +149,7 @@ public class WatermarkGeneratorImpl implements WatermarkGenerator {
                 synchronized (WatermarkGeneratorImpl.this) {
                     PositionImpl setPosition = WatermarkGeneratorImpl.this.position;
                     for (Entry entry : entries) {
-                        PositionImpl position = (PositionImpl) entry;
+                        PositionImpl position = (PositionImpl) entry.getPosition();
                         if (position.compareTo(setPosition) < 0) {
                             handleEntry(entry);
                         }

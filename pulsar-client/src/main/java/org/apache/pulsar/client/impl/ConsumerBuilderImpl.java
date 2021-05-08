@@ -443,7 +443,12 @@ public class ConsumerBuilderImpl<T> implements ConsumerBuilder<T> {
     @Override
     public ConsumerBuilder<T> expireTimeOfIncompleteChunkedMessage(long duration, TimeUnit unit) {
         conf.setExpireTimeOfIncompleteChunkedMessageMillis(unit.toMillis(duration));
-        return null;
+        return this;
     }
 
+    @Override
+    public ConsumerBuilder<T> enableWatermarking(boolean watermarkingEnabled) {
+        conf.setWatermarkingEnabled(watermarkingEnabled);
+        return this;
+    }
 }

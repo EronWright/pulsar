@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -803,7 +804,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                 ManagedCursor watermarkCursor;
                 try {
                     // TODO optimize to start from a snapshot
-                    watermarkCursor = ledger.newNonDurableCursor(PositionImpl.earliest, subscriptionName, InitialPosition.Earliest);
+                    watermarkCursor = ledger.newNonDurableCursor(PositionImpl.earliest, subscriptionName + UUID.randomUUID(), InitialPosition.Earliest);
                 } catch (ManagedLedgerException e) {
                     return FutureUtil.failedFuture(e);
                 }

@@ -74,6 +74,7 @@ import org.apache.pulsar.client.impl.transaction.TransactionImpl;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageMetadata;
 import org.apache.pulsar.common.api.proto.PulsarApi.MessageMetadata.Builder;
 import org.apache.pulsar.common.api.proto.PulsarApi.ProtocolVersion;
+import org.apache.pulsar.common.api.proto.PulsarMarkers;
 import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.compression.CompressionCodecProvider;
 import org.apache.pulsar.common.naming.TopicName;
@@ -700,7 +701,8 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 
     private boolean canAddToBatch(MessageImpl<?> msg) {
         return msg.getSchemaState() == MessageImpl.SchemaState.Ready
-                && isBatchMessagingEnabled() && !msg.getMessageBuilder().hasDeliverAtTime();
+                && isBatchMessagingEnabled() && !msg.getMessageBuilder().hasDeliverAtTime()
+                && msg.getMessageBuilder().getMarkerType() != PulsarMarkers.MarkerType.W_UPDATE_VALUE;
     }
 
     private boolean canAddToCurrentBatch(MessageImpl<?> msg) {
